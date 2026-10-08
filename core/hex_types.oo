@@ -1,0 +1,137 @@
+// # Hexadecimal Viewer Core Types and Records
+//
+// Logline: Data structures defining hex dump configuration, rows, diffs, and entropy stats.
+//
+// Setup: Pure value types bounding byte offsets, formatting controls, and inspection telemetry.
+//
+// Beats:
+//   1. Define HexDumpConfig for column widths, grouping, and offset bounds.
+//   2. Define HexRow and HexResult for canonical hex representation.
+//   3. Define HexDiffRow and HexDiffResult for delta highlighting.
+//   4. Define HexStats for byte frequency and entropy metrics.
+
+pub type HexDumpConfig = struct {
+    cols: Int,
+    groupsize: Int,
+    skip: Int,
+    length: Int,
+    canonical: Bool,
+    plain: Bool,
+    uppercase: Bool,
+    color: Bool,
+    reverse: Bool
+};
+
+pub fn default_hex_config() -> HexDumpConfig {
+    return HexDumpConfig {
+        cols: 16,
+        groupsize: 1,
+        skip: 0,
+        length: 0 - 1,
+        canonical: true,
+        plain: false,
+        uppercase: false,
+        color: true,
+        reverse: false
+    };
+}
+
+pub type HexRow = struct {
+    offset: Int,
+    hex_part: String,
+    ascii_part: String,
+    bytes_count: Int
+};
+
+pub fn make_hex_row(offset: Int, hex_part: String, ascii_part: String, bytes_count: Int) -> HexRow {
+    return HexRow {
+        offset: offset,
+        hex_part: hex_part,
+        ascii_part: ascii_part,
+        bytes_count: bytes_count
+    };
+}
+
+pub type HexResult = struct {
+    name: String,
+    total_bytes: Int,
+    rendered: String
+};
+
+pub fn make_hex_result(name: String, total_bytes: Int, rendered: String) -> HexResult {
+    return HexResult {
+        name: name,
+        total_bytes: total_bytes,
+        rendered: rendered
+    };
+}
+
+pub type HexDiffRow = struct {
+    offset: Int,
+    a_hex: String,
+    b_hex: String,
+    a_ascii: String,
+    b_ascii: String,
+    diff_count: Int
+};
+
+pub fn make_hex_diff_row(
+    offset: Int,
+    a_hex: String,
+    b_hex: String,
+    a_ascii: String,
+    b_ascii: String,
+    diff_count: Int
+) -> HexDiffRow {
+    return HexDiffRow {
+        offset: offset,
+        a_hex: a_hex,
+        b_hex: b_hex,
+        a_ascii: a_ascii,
+        b_ascii: b_ascii,
+        diff_count: diff_count
+    };
+}
+
+pub type HexDiffResult = struct {
+    name_a: String,
+    name_b: String,
+    total_diffs: Int,
+    rendered: String
+};
+
+pub fn make_hex_diff_result(name_a: String, name_b: String, total_diffs: Int, rendered: String) -> HexDiffResult {
+    return HexDiffResult {
+        name_a: name_a,
+        name_b: name_b,
+        total_diffs: total_diffs,
+        rendered: rendered
+    };
+}
+
+pub type HexStats = struct {
+    total_bytes: Int,
+    null_bytes: Int,
+    printable_bytes: Int,
+    control_bytes: Int,
+    high_bytes: Int,
+    entropy_milli: Int
+};
+
+pub fn make_hex_stats(
+    total: Int,
+    nulls: Int,
+    printable: Int,
+    controls: Int,
+    high: Int,
+    entropy: Int
+) -> HexStats {
+    return HexStats {
+        total_bytes: total,
+        null_bytes: nulls,
+        printable_bytes: printable,
+        control_bytes: controls,
+        high_bytes: high,
+        entropy_milli: entropy
+    };
+}

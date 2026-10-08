@@ -1,0 +1,85 @@
+// # Hexadecimal Interactive Demonstration Showcase
+//
+// Logline: Generates live binary dissection demos highlighting ELF headers and deltas.
+//
+// Setup: Pure synthetic payloads illustrating canonical hex dump, colors, and delta diffing.
+//
+// Beats:
+//   1. Construct synthetic ELF64 executable header byte payload.
+//   2. Demonstrate canonical column formatting and semantic byte colorization.
+//   3. Mutate header fields to demonstrate delta difference highlighting.
+//   4. Compute and display byte distribution statistics and entropy metrics.
+
+import "core/hex_types.oo";
+import "core/hex_formatter.oo";
+import "render/render_table.oo";
+import "render/render_json.oo";
+
+pub fn run_hex_demo(use_color: Bool) -> String {
+    let mut out: String = "================================================================================\n";
+    out = out + "                  oohex: Sovereign openOODA Hex Dump Pager Demo                  \n";
+    out = out + "================================================================================\n\n";
+
+    // Build synthetic 48-byte ELF64 header
+    let mut elf: List[Int] = list_new();
+    elf = list_push(elf, 127); // 0x7f
+    elf = list_push(elf, 69);  // 'E'
+    elf = list_push(elf, 76);  // 'L'
+    elf = list_push(elf, 70);  // 'F'
+    elf = list_push(elf, 2);   // 64-bit
+    elf = list_push(elf, 1);   // Little endian
+    elf = list_push(elf, 1);   // Original ELF version
+    elf = list_push(elf, 0);   // System V ABI
+    elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0);
+    elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0);
+
+    // e_type (ET_EXEC = 2), e_machine (EM_X86_64 = 62 / 0x3e)
+    elf = list_push(elf, 2); elf = list_push(elf, 0);
+    elf = list_push(elf, 62); elf = list_push(elf, 0);
+    elf = list_push(elf, 1); elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0);
+    // e_entry (0x401000)
+    elf = list_push(elf, 0); elf = list_push(elf, 16); elf = list_push(elf, 64); elf = list_push(elf, 0);
+    elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0);
+
+    // e_phoff (0x40)
+    elf = list_push(elf, 64); elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0);
+    elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0); elf = list_push(elf, 0);
+    // text segment banner
+    elf = list_push(elf, 79); elf = list_push(elf, 79); elf = list_push(elf, 68); elf = list_push(elf, 65); // "OODA"
+    elf = list_push(elf, 45); elf = list_push(elf, 83); elf = list_push(elf, 69); elf = list_push(elf, 67); // "-SEC"
+
+    out = out + "--- 1. Canonical Hex Dump (ELF64 Header) ---\n";
+    out = out + render_hex_table(elf, 16, 0, false, use_color) + "\n";
+
+    // Create mutated copy with modified machine and entry point
+    let mut mutated: List[Int] = list_new();
+    let n: Int = list_len(elf);
+    let mut i: Int = 0;
+    while i < n {
+        let mut b: Int = list_get(elf, i);
+        if i == 18 {
+            b = 183; // Change x86_64 (62) to AArch64 (183 / 0xb7)
+        }
+        if i == 25 {
+            b = 32;  // Modify entry point
+        }
+        mutated = list_push(mutated, b);
+        i = i + 1;
+    }
+
+    out = out + "--- 2. Hex Delta Comparison (x86_64 vs AArch64 Header) ---\n";
+    out = out + render_diff_table("binary_x86_64", elf, "binary_aarch64", mutated, use_color) + "\n";
+
+    out = out + "--- 3. Byte Distribution Statistics & Entropy ---\n";
+    let stats: HexStats = compute_stats(elf);
+    out = out + "Total Bytes: " + to_string(stats.total_bytes) + "\n";
+    out = out + "Null Bytes:  " + to_string(stats.null_bytes) + " (" + to_string((stats.null_bytes * 100) / stats.total_bytes) + "%)\n";
+    out = out + "Printable:   " + to_string(stats.printable_bytes) + " (" + to_string((stats.printable_bytes * 100) / stats.total_bytes) + "%)\n";
+    out = out + "Control:     " + to_string(stats.control_bytes) + "\n";
+    out = out + "High Binary: " + to_string(stats.high_bytes) + "\n";
+    out = out + "Entropy est: " + to_string(stats.entropy_milli) + " / 1000\n\n";
+
+    out = out + "Structured JSON Export:\n";
+    out = out + hex_result_to_json("demo_elf64", elf, 0, stats) + "\n";
+    return out;
+}

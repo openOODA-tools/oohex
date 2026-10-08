@@ -1,13 +1,28 @@
-// # oohex Root Anchor
+// # Root Verification Anchor for oohex
 //
-// Logline: Top-level anchor re-exporting options, core logic, render, and ipc subsystems.
+// Logline: Top-level integration test orchestrating core, render, and ipc subsystem anchors.
 //
-// Setup: Pure shim re-exporting all oohex subsystem anchors.
+// Setup: Demands zero ambient authority, verifying pure hex formatting and decoding logic.
 //
 // Beats:
-//   1. Re-export options parsing subsystem.
-//   2. Re-export core oohex execution engine.
-//   3. Re-export render formatting subsystem.
-//   4. Re-export Model Context Protocol (MCP) IPC subsystem.
+//   1. Verify core hex formatting, decoding, and byte frequency calculation.
+//   2. Verify render subsystem table formatting, delta diffs, and JSON serialization.
+//   3. Verify ipc subsystem argument parsing, JSON decoding, and character escaping.
+//   4. Export top-level system verification routine for test harness.
 
-import "main.oo";
+import "core/anchor.oo";
+import "render/anchor.oo";
+import "ipc/anchor.oo";
+
+pub fn verify_all() -> Bool {
+    if !verify_core() {
+        return false;
+    }
+    if !verify_render() {
+        return false;
+    }
+    if !verify_ipc() {
+        return false;
+    }
+    return true;
+}

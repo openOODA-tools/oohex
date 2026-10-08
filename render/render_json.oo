@@ -1,0 +1,54 @@
+// # Structured JSON Serializer for oohex
+//
+// Logline: Emits capability-bounded JSON telemetry for hex dumps, deltas, and stats.
+//
+// Setup: Pure string formatting avoiding external serializers with manual string escaping.
+//
+// Beats:
+//   1. Serialize byte statistical distributions into structured JSON metrics.
+//   2. Encode hex dump results with byte counts and offset boundaries.
+//   3. Format delta difference reports for programmatic consumer inspection.
+//   4. Emit capability-bounded JSON-RPC payload representations.
+
+import "core/hex_types.oo";
+import "core/hex_formatter.oo";
+
+pub fn hex_stats_to_json(stats: HexStats) -> String {
+    return "{\"total\":" + to_string(stats.total_bytes) +
+        ",\"nulls\":" + to_string(stats.null_bytes) +
+        ",\"printable\":" + to_string(stats.printable_bytes) +
+        ",\"control\":" + to_string(stats.control_bytes) +
+        ",\"high\":" + to_string(stats.high_bytes) +
+        ",\"entropy_milli\":" + to_string(stats.entropy_milli) + "}";
+}
+
+pub fn hex_result_to_json(
+    name: String,
+    bytes: List[Int],
+    base_offset: Int,
+    stats: HexStats
+) -> String {
+    let n: Int = list_len(bytes);
+    let hex_plain: String = format_plain_hex(bytes, false);
+    return "{\"name\":\"" + name + "\"" +
+        ",\"offset\":" + to_string(base_offset) +
+        ",\"bytes\":" + to_string(n) +
+        ",\"hex\":\"" + hex_plain + "\"" +
+        ",\"stats\":" + hex_stats_to_json(stats) + "}";
+}
+
+pub fn hex_diff_to_json(
+    name_a: String,
+    name_b: String,
+    diff_count: Int,
+    total_a: Int,
+    total_b: Int
+) -> String {
+    let identical: String = if diff_count == 0 && total_a == total_b { "true" } else { "false" };
+    return "{\"file_a\":\"" + name_a + "\"" +
+        ",\"file_b\":\"" + name_b + "\"" +
+        ",\"bytes_a\":" + to_string(total_a) +
+        ",\"bytes_b\":" + to_string(total_b) +
+        ",\"diff_count\":" + to_string(diff_count) +
+        ",\"identical\":" + identical + "}";
+}

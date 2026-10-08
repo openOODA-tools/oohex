@@ -1,0 +1,133 @@
+// # Hexadecimal Table and Delta Difference Renderer
+//
+// Logline: Formats color-coded hex tables, gutters, and delta difference views.
+//
+// Setup: Pure terminal rendering routines respecting ANSI color toggles.
+//
+// Beats:
+//   1. Colorize individual hex bytes according to byte category semantics.
+//   2. Format complete canonical hex dump tables with address headers.
+//   3. Render delta comparison hunks highlighting byte differences.
+//   4. Export terminal-ready text representations.
+
+import "core/hex_formatter.oo";
+
+fn color_hex_byte(b: Int, hex_str: String, use_color: Bool) -> String {
+    if !use_color {
+        return hex_str;
+    }
+    if b == 0 {
+        return "\u001b[2m" + hex_str + "\u001b[0m"; // Dim for null
+    }
+    if b >= 32 && b <= 126 {
+        return "\u001b[32m" + hex_str + "\u001b[0m"; // Green for printable
+    }
+    if b < 32 {
+        return "\u001b[33m" + hex_str + "\u001b[0m"; // Yellow for control
+    }
+    return "\u001b[35m" + hex_str + "\u001b[0m"; // Magenta for high binary
+}
+
+pub fn render_hex_table(
+    bytes: List[Int],
+    cols: Int,
+    base_offset: Int,
+    upper: Bool,
+    use_color: Bool
+) -> String {
+    let n: Int = list_len(bytes);
+    if n == 0 {
+        return "";
+    }
+
+    let mut out: String = "";
+    let mut row_start: Int = 0;
+
+    while row_start < n {
+        let current_offset: Int = base_offset + row_start;
+        let mut line: String = format_offset(current_offset, upper) + "  ";
+        let mut ascii: String = "";
+        let mut col: Int = 0;
+
+        while col < cols {
+            if col == 8 {
+                line = line + " ";
+            }
+            if row_start + col < n {
+                let b: Int = list_get(bytes, row_start + col);
+                let hex_pair: String = byte_to_hex(b, upper);
+                line = line + color_hex_byte(b, hex_pair, use_color);
+                ascii = ascii + byte_to_ascii_char(b);
+            } else {
+                line = line + "  ";
+            }
+            if col + 1 < cols {
+                line = line + " ";
+            }
+            col = col + 1;
+        }
+
+        line = line + "  |" + ascii + "|\n";
+        out = out + line;
+        row_start = row_start + cols;
+    }
+
+    return out;
+}
+
+pub fn render_diff_table(
+    name_a: String,
+    bytes_a: List[Int],
+    name_b: String,
+    bytes_b: List[Int],
+    use_color: Bool
+) -> String {
+    let len_a: Int = list_len(bytes_a);
+    let len_b: Int = list_len(bytes_b);
+    let max_len: Int = if len_a > len_b { len_a } else { len_b };
+
+    let mut out: String = "=== HEX DELTA COMPARISON ===\n";
+    out = out + "File A: " + name_a + " (" + to_string(len_a) + " bytes)\n";
+    out = out + "File B: " + name_b + " (" + to_string(len_b) + " bytes)\n\n";
+
+    let mut row_start: Int = 0;
+    let mut diff_count: Int = 0;
+
+    while row_start < max_len {
+        let mut has_diff: Bool = false;
+        let mut c: Int = 0;
+        while c < 16 && (row_start + c) < max_len {
+            let va: Int = if (row_start + c) < len_a { list_get(bytes_a, row_start + c) } else { 0 - 1 };
+            let vb: Int = if (row_start + c) < len_b { list_get(bytes_b, row_start + c) } else { 0 - 1 };
+            if va != vb {
+                has_diff = true;
+                diff_count = diff_count + 1;
+            }
+            c = c + 1;
+        }
+
+        if has_diff {
+            let marker: String = if use_color { "\u001b[31m* \u001b[0m" } else { "* " };
+            out = out + marker + "Offset " + format_offset(row_start, false) + "\n";
+            let mut sub_a: List[Int] = list_new();
+            let mut sub_b: List[Int] = list_new();
+            c = 0;
+            while c < 16 {
+                if (row_start + c) < len_a { sub_a = list_push(sub_a, list_get(bytes_a, row_start + c)); }
+                if (row_start + c) < len_b { sub_b = list_push(sub_b, list_get(bytes_b, row_start + c)); }
+                c = c + 1;
+            }
+            out = out + "  A: " + render_hex_table(sub_a, 16, row_start, false, use_color);
+            out = out + "  B: " + render_hex_table(sub_b, 16, row_start, false, use_color);
+        }
+        row_start = row_start + 16;
+    }
+
+    if diff_count == 0 {
+        out = out + "No differences detected. Payloads are identical.\n";
+    } else {
+        out = out + "\nTotal mismatched bytes: " + to_string(diff_count) + "\n";
+    }
+
+    return out;
+}

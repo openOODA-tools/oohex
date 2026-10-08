@@ -1,0 +1,62 @@
+// # Core Subsystem Verification Anchor
+//
+// Logline: Automated self-tests for hex encoding, decoding, offset math, and diffs.
+//
+// Setup: Exercises formatting, decoding round-trips, and statistical telemetry.
+//
+// Beats:
+//   1. Verify single byte to hex string conversion and offset padding.
+//   2. Verify canonical hex row assembly with ASCII sidebar.
+//   3. Verify plain hex encoding and decoding round-trip integrity.
+//   4. Verify byte diff calculation and statistical frequency analysis.
+
+import "core/hex_types.oo";
+import "core/hex_formatter.oo";
+import "core/hex_decoder.oo";
+import "core/file_reader.oo";
+
+pub fn verify_core() -> Bool {
+    // Test 1: Byte to hex
+    if byte_to_hex(0, false) != "00" || byte_to_hex(255, true) != "FF" || byte_to_hex(170, false) != "aa" {
+        return false;
+    }
+
+    // Test 2: Offset format
+    if format_offset(0, false) != "00000000" || format_offset(16, false) != "00000010" {
+        return false;
+    }
+
+    // Test 3: Plain hex round-trip
+    let raw_text: String = "Hello, openOODA!";
+    let bytes: List[Int] = str_to_byte_list(raw_text, 0, 0 - 1);
+    let hex_plain: String = format_plain_hex(bytes, false);
+    let decoded_res: Result[String, String] = decode_hex_to_str(hex_plain);
+    if !decoded_res.is_ok() {
+        return false;
+    }
+    let decoded: String = match decoded_res { Ok(s) => s, Err(_) => "" };
+    if decoded != raw_text {
+        return false;
+    }
+
+    // Test 4: Format row
+    let row: String = format_row(0, bytes, 0, list_len(bytes), 16, false);
+    if !str_contains(row, "48 65 6c 6c 6f") || !str_contains(row, "|Hello, openOODA!|") {
+        return false;
+    }
+
+    // Test 5: Diff counting
+    let other_bytes: List[Int] = str_to_byte_list("Hello, World!!!", 0, 0 - 1);
+    let diffs: Int = count_differing_bytes(bytes, other_bytes);
+    if diffs <= 0 {
+        return false;
+    }
+
+    // Test 6: Stats
+    let stats: HexStats = compute_stats(bytes);
+    if stats.total_bytes != list_len(bytes) || stats.printable_bytes <= 0 {
+        return false;
+    }
+
+    return true;
+}

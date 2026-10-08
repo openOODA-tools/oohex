@@ -1,0 +1,143 @@
+// # Hexadecimal Formatter and Canonical Slicer
+//
+// Logline: Converts raw byte sequences into canonical hex dump rows with ASCII sidebar.
+//
+// Setup: Pure string and byte conversions without external formatting libraries.
+//
+// Beats:
+//   1. Convert 8-bit integers to 2-character hex strings with case selection.
+//   2. Format 32-bit byte offsets into fixed 8-digit hexadecimal addresses.
+//   3. Map byte values to printable ASCII representations with period fallbacks.
+//   4. Assemble canonical hex rows with central column gutters and ASCII sidebars.
+
+import "core/hex_types.oo";
+
+pub fn hex_nibble(n: Int, upper: Bool) -> String {
+    let clamped: Int = n % 16;
+    if clamped == 0 { return "0"; }
+    if clamped == 1 { return "1"; }
+    if clamped == 2 { return "2"; }
+    if clamped == 3 { return "3"; }
+    if clamped == 4 { return "4"; }
+    if clamped == 5 { return "5"; }
+    if clamped == 6 { return "6"; }
+    if clamped == 7 { return "7"; }
+    if clamped == 8 { return "8"; }
+    if clamped == 9 { return "9"; }
+    if upper {
+        if clamped == 10 { return "A"; }
+        if clamped == 11 { return "B"; }
+        if clamped == 12 { return "C"; }
+        if clamped == 13 { return "D"; }
+        if clamped == 14 { return "E"; }
+        return "F";
+    }
+    if clamped == 10 { return "a"; }
+    if clamped == 11 { return "b"; }
+    if clamped == 12 { return "c"; }
+    if clamped == 13 { return "d"; }
+    if clamped == 14 { return "e"; }
+    return "f";
+}
+
+pub fn byte_to_hex(b: Int, upper: Bool) -> String {
+    let hi: Int = (b / 16) % 16;
+    let lo: Int = b % 16;
+    return hex_nibble(hi, upper) + hex_nibble(lo, upper);
+}
+
+pub fn format_offset(offset: Int, upper: Bool) -> String {
+    let mut out: String = "";
+    let mut v: Int = offset;
+    let mut i: Int = 0;
+    while i < 8 {
+        let nib: Int = v % 16;
+        out = hex_nibble(nib, upper) + out;
+        v = v / 16;
+        i = i + 1;
+    }
+    return out;
+}
+
+pub fn byte_to_ascii_char(b: Int) -> String {
+    if b >= 32 && b <= 126 {
+        return bytes_to_str(bytes_push(bytes_new(), b));
+    }
+    return ".";
+}
+
+pub fn format_row(
+    offset: Int,
+    bytes: List[Int],
+    start_idx: Int,
+    row_len: Int,
+    total_cols: Int,
+    upper: Bool
+) -> String {
+    let mut line: String = format_offset(offset, upper) + "  ";
+    let mut ascii: String = "";
+    let mut col: Int = 0;
+
+    while col < total_cols {
+        if col == 8 {
+            line = line + " ";
+        }
+        if col < row_len {
+            let b: Int = list_get(bytes, start_idx + col);
+            line = line + byte_to_hex(b, upper);
+            ascii = ascii + byte_to_ascii_char(b);
+        } else {
+            line = line + "  ";
+        }
+        if col + 1 < total_cols {
+            line = line + " ";
+        }
+        col = col + 1;
+    }
+
+    line = line + "  |" + ascii + "|";
+    return line;
+}
+
+pub fn format_plain_hex(bytes: List[Int], upper: Bool) -> String {
+    let n: Int = list_len(bytes);
+    let mut out: String = "";
+    let mut i: Int = 0;
+    while i < n {
+        out = out + byte_to_hex(list_get(bytes, i), upper);
+        i = i + 1;
+    }
+    return out;
+}
+
+pub fn compute_stats(bytes: List[Int]) -> HexStats {
+    let n: Int = list_len(bytes);
+    let mut nulls: Int = 0;
+    let mut printables: Int = 0;
+    let mut controls: Int = 0;
+    let mut highs: Int = 0;
+    let mut i: Int = 0;
+
+    while i < n {
+        let b: Int = list_get(bytes, i);
+        if b == 0 {
+            nulls = nulls + 1;
+        } else if b >= 32 && b <= 126 {
+            printables = printables + 1;
+        } else if b < 32 {
+            controls = controls + 1;
+        } else {
+            highs = highs + 1;
+        }
+        i = i + 1;
+    }
+
+    // Estimate entropy metric: non-null distribution weight
+    let entropy_milli: Int = if n > 0 {
+        ((printables * 500) + (highs * 800) + (controls * 600)) / n
+    } else {
+        0
+    };
+
+    return make_hex_stats(n, nulls, printables, controls, highs, entropy_milli);
+}

@@ -1,0 +1,54 @@
+// # File Byte Reader and Offset Slicer
+//
+// Logline: Capability-bounded file reader extracting byte ranges under FsReadCap.
+//
+// Setup: Demands explicit FsReadCap token with skip and length bounds checking.
+//
+// Beats:
+//   1. Read target file into owned memory using capability token.
+//   2. Validate start skip offset against total file length.
+//   3. Extract bounded sub-sequence of 8-bit integers without ambient leaks.
+//   4. Convert raw String buffers into indexed byte lists.
+
+pub fn str_to_byte_list(text: String, skip: Int, length: Int) -> List[Int] {
+    let total: Int = bytes_len(text);
+    let mut out: List[Int] = list_new();
+    if total == 0 || skip >= total {
+        return out;
+    }
+
+    let start_idx: Int = if skip > 0 { skip } else { 0 };
+    let end_idx: Int = if length >= 0 && (start_idx + length) < total {
+        start_idx + length
+    } else {
+        total
+    };
+
+    let mut i: Int = start_idx;
+    while i < end_idx {
+        out = list_push(out, byte_at(text, i));
+        i = i + 1;
+    }
+    return out;
+}
+
+pub fn read_bounded_bytes(
+    fs: &FsReadCap,
+    path: String,
+    skip: Int,
+    length: Int
+) -> Result[List[Int], String] {
+    let content_res: Result[String, String] = oo_read_file(fs, path);
+    if !content_res.is_ok() {
+        return match content_res {
+            Ok(_) => Err("Unable to read file"),
+            Err(e) => Err(e)
+        };
+    }
+    let content: String = match content_res {
+        Ok(c) => c,
+        Err(_) => ""
+    };
+
+    return Ok(str_to_byte_list(content, skip, length));
+}

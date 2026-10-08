@@ -1,0 +1,55 @@
+// # IPC Subsystem Verification Anchor
+//
+// Logline: Automated self-tests for JSON parsing, string escaping, and CLI flag decoding.
+//
+// Setup: Exercises JSON token extractions and argument vector decoding.
+//
+// Beats:
+//   1. Verify JSON field and string unescaping routines.
+//   2. Verify JSON character escaping for outgoing RPC responses.
+//   3. Verify CLI flag parser across column widths, offsets, and modes.
+//   4. Export ipc verification predicate for integration test harness.
+
+import "ipc/json_field.oo";
+import "ipc/cli_options.oo";
+
+pub fn verify_ipc() -> Bool {
+    // Test 1: JSON field extractions
+    let sample_json: String = "{\"id\":42,\"method\":\"tools/call\",\"params\":{\"name\":\"hex_dump\",\"text\":\"hello\\nworld\"}}";
+    if json_get_field(sample_json, "id") != "42" || json_get_string(sample_json, "method") != "tools/call" {
+        return false;
+    }
+
+    // Test 2: Unescape
+    let unescaped: String = json_unescape("line1\\nline2");
+    if !str_contains(unescaped, "\n") {
+        return false;
+    }
+
+    // Test 3: Escape
+    let escaped: String = json_escape("foo \"bar\"\n");
+    if !str_contains(escaped, "\\\"") || !str_contains(escaped, "\\n") {
+        return false;
+    }
+
+    // Test 4: CLI options parsing
+    let mut args: List[String] = list_new();
+    args = list_push(args, "-c");
+    args = list_push(args, "8");
+    args = list_push(args, "-s");
+    args = list_push(args, "32");
+    args = list_push(args, "-n");
+    args = list_push(args, "64");
+    args = list_push(args, "-p");
+    args = list_push(args, "sample.bin");
+
+    let opts: CliOptions = parse_cli_options(args);
+    if opts.cols != 8 || opts.skip != 32 || opts.length != 64 || !opts.plain || opts.canonical {
+        return false;
+    }
+    if list_len(opts.files) != 1 || list_get(opts.files, 0) != "sample.bin" {
+        return false;
+    }
+
+    return true;
+}

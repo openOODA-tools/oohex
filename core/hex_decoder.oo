@@ -1,0 +1,118 @@
+// # Hexadecimal Decoder and Delta Evaluator
+//
+// Logline: Decodes plain hex strings to raw byte buffers and computes delta differences.
+//
+// Setup: Pure algorithmic parser ignoring whitespace and verifying valid hexadecimal digits.
+//
+// Beats:
+//   1. Convert single hex characters to 4-bit nibble integers.
+//   2. Parse contiguous pairs of hex digits into 8-bit byte arrays.
+//   3. Decode hexadecimal sequences back to UTF-8 and raw binary strings.
+//   4. Compute delta differences between byte lists for visual comparison.
+
+pub fn hex_digit_val(c: String) -> Int {
+    if c == "0" { return 0; }
+    if c == "1" { return 1; }
+    if c == "2" { return 2; }
+    if c == "3" { return 3; }
+    if c == "4" { return 4; }
+    if c == "5" { return 5; }
+    if c == "6" { return 6; }
+    if c == "7" { return 7; }
+    if c == "8" { return 8; }
+    if c == "9" { return 9; }
+    if c == "a" || c == "A" { return 10; }
+    if c == "b" || c == "B" { return 11; }
+    if c == "c" || c == "C" { return 12; }
+    if c == "d" || c == "D" { return 13; }
+    if c == "e" || c == "E" { return 14; }
+    if c == "f" || c == "F" { return 15; }
+    return 0 - 1;
+}
+
+pub fn hex_pair_to_byte(hi_ch: String, lo_ch: String) -> Int {
+    let hi: Int = hex_digit_val(hi_ch);
+    let lo: Int = hex_digit_val(lo_ch);
+    if hi < 0 || lo < 0 {
+        return 0 - 1;
+    }
+    return (hi * 16) + lo;
+}
+
+pub fn decode_hex_string(hex: String) -> Result[List[Int], String] {
+    let n: Int = chars_len(hex);
+    let mut clean_digits: List[String] = list_new();
+    let mut i: Int = 0;
+
+    while i < n {
+        let ch: String = char_at(hex, i);
+        let val: Int = hex_digit_val(ch);
+        if val >= 0 {
+            clean_digits = list_push(clean_digits, ch);
+        } else if ch != " " && ch != "\t" && ch != "\n" && ch != "\r" && ch != ":" && ch != "|" {
+            return Err("Invalid hexadecimal digit: " + ch);
+        }
+        i = i + 1;
+    }
+
+    let digit_cnt: Int = list_len(clean_digits);
+    if digit_cnt % 2 != 0 {
+        return Err("Odd number of hexadecimal digits");
+    }
+
+    let mut out: List[Int] = list_new();
+    let mut j: Int = 0;
+    while j < digit_cnt {
+        let c1: String = list_get(clean_digits, j);
+        let c2: String = list_get(clean_digits, j + 1);
+        let byte_val: Int = hex_pair_to_byte(c1, c2);
+        if byte_val < 0 {
+            return Err("Invalid byte value");
+        }
+        out = list_push(out, byte_val);
+        j = j + 2;
+    }
+
+    return Ok(out);
+}
+
+pub fn decode_hex_to_str(hex: String) -> Result[String, String] {
+    let dec_res: Result[List[Int], String] = decode_hex_string(hex);
+    if !dec_res.is_ok() {
+        return match dec_res {
+            Ok(_) => Err("error"),
+            Err(e) => Err(e)
+        };
+    }
+    let byte_list: List[Int] = match dec_res {
+        Ok(lst) => lst,
+        Err(_) => list_new()
+    };
+
+    let mut buf: List[Int] = bytes_new();
+    let n: Int = list_len(byte_list);
+    let mut i: Int = 0;
+    while i < n {
+        buf = bytes_push(buf, list_get(byte_list, i));
+        i = i + 1;
+    }
+    return Ok(bytes_to_str(buf));
+}
+
+pub fn count_differing_bytes(a: List[Int], b: List[Int]) -> Int {
+    let len_a: Int = list_len(a);
+    let len_b: Int = list_len(b);
+    let max_len: Int = if len_a > len_b { len_a } else { len_b };
+    let mut diffs: Int = 0;
+    let mut i: Int = 0;
+
+    while i < max_len {
+        let val_a: Int = if i < len_a { list_get(a, i) } else { 0 - 1 };
+        let val_b: Int = if i < len_b { list_get(b, i) } else { 0 - 1 };
+        if val_a != val_b {
+            diffs = diffs + 1;
+        }
+        i = i + 1;
+    }
+    return diffs;
+}

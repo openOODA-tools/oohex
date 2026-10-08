@@ -1,7 +1,7 @@
 # Maintainer: openOODA-tools <ops@openooda.org>
 pkgname=oohex-bin
 _pkgname=oohex
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Color-coded hexadecimal viewer with canonical ASCII sidebar and delta highlighting."
 arch=('x86_64')

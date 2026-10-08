@@ -1,0 +1,127 @@
+// # Command Line Interface Options Parser for oohex
+//
+// Logline: Decodes POSIX flags, offset bounds, and operation modes into structured options.
+//
+// Setup: Pure string argument processor avoiding nested struct mutation to maintain compiler safety.
+//
+// Beats:
+//   1. Parse column width, grouping, skip offset, and byte length parameters.
+//   2. Support canonical, plain hex, uppercase, and reverse decode flags.
+//   3. Handle help, version, test, demo, and MCP protocol activation.
+//   4. Collect target positional file arguments.
+
+pub type CliOptions = struct {
+    cols: Int,
+    groupsize: Int,
+    skip: Int,
+    length: Int,
+    canonical: Bool,
+    plain: Bool,
+    uppercase: Bool,
+    color: Bool,
+    reverse: Bool,
+    json: Bool,
+    demo: Bool,
+    test: Bool,
+    help: Bool,
+    version: Bool,
+    mcp: Bool,
+    files: List[String]
+};
+
+pub fn default_cli_options() -> CliOptions {
+    return CliOptions {
+        cols: 16,
+        groupsize: 1,
+        skip: 0,
+        length: 0 - 1,
+        canonical: true,
+        plain: false,
+        uppercase: false,
+        color: true,
+        reverse: false,
+        json: false,
+        demo: false,
+        test: false,
+        help: false,
+        version: false,
+        mcp: false,
+        files: list_new()
+    };
+}
+
+pub fn parse_int_val(s: String) -> Int {
+    let n: Int = chars_len(s);
+    let mut out: Int = 0;
+    let mut i: Int = 0;
+    while i < n {
+        let c: String = char_at(s, i);
+        if c == "0" { out = out * 10 + 0; }
+        else if c == "1" { out = out * 10 + 1; }
+        else if c == "2" { out = out * 10 + 2; }
+        else if c == "3" { out = out * 10 + 3; }
+        else if c == "4" { out = out * 10 + 4; }
+        else if c == "5" { out = out * 10 + 5; }
+        else if c == "6" { out = out * 10 + 6; }
+        else if c == "7" { out = out * 10 + 7; }
+        else if c == "8" { out = out * 10 + 8; }
+        else if c == "9" { out = out * 10 + 9; }
+        i = i + 1;
+    }
+    return out;
+}
+
+pub fn parse_cli_options(args: List[String]) -> CliOptions {
+    let mut opts: CliOptions = default_cli_options();
+    let num_args: Int = list_len(args);
+    let mut i: Int = 0;
+
+    while i < num_args {
+        let arg: String = list_get(args, i);
+
+        if arg == "-h" || arg == "--help" {
+            opts.help = true;
+        } else if arg == "-v" || arg == "-V" || arg == "--version" {
+            opts.version = true;
+        } else if arg == "--mcp" {
+            opts.mcp = true;
+        } else if arg == "-D" || arg == "--demo" {
+            opts.demo = true;
+        } else if arg == "--test" {
+            opts.test = true;
+        } else if arg == "-j" || arg == "--json" {
+            opts.json = true;
+        } else if arg == "-C" || arg == "--canonical" {
+            opts.canonical = true;
+            opts.plain = false;
+        } else if arg == "-p" || arg == "--plain" {
+            opts.plain = true;
+            opts.canonical = false;
+        } else if arg == "-u" || arg == "--uppercase" {
+            opts.uppercase = true;
+        } else if arg == "-r" || arg == "--reverse" {
+            opts.reverse = true;
+        } else if arg == "--no-color" {
+            opts.color = false;
+        } else if (arg == "-c" || arg == "--cols" || arg == "-w" || arg == "--width") && i + 1 < num_args {
+            i = i + 1;
+            let val: Int = parse_int_val(list_get(args, i));
+            if val > 0 { opts.cols = val; }
+        } else if (arg == "-s" || arg == "--skip" || arg == "--seek") && i + 1 < num_args {
+            i = i + 1;
+            opts.skip = parse_int_val(list_get(args, i));
+        } else if (arg == "-n" || arg == "--length") && i + 1 < num_args {
+            i = i + 1;
+            opts.length = parse_int_val(list_get(args, i));
+        } else if (arg == "-g" || arg == "--groupsize") && i + 1 < num_args {
+            i = i + 1;
+            let val: Int = parse_int_val(list_get(args, i));
+            if val > 0 { opts.groupsize = val; }
+        } else if !str_starts_with(arg, "-") {
+            opts.files = list_push(opts.files, arg);
+        }
+        i = i + 1;
+    }
+
+    return opts;
+}

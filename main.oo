@@ -1,52 +1,165 @@
-// # oohex Main Entry Point
+// # Sovereign Hex Dump Pager Main Entry Point
 //
 // Logline: Color-coded hexadecimal viewer with canonical ASCII sidebar and delta highlighting.
 //
-// Setup: Demands explicit capability tokens and standard argument list.
+// Setup: Demands FsReadCap, ProcessCap, EnvCap capability tokens with zero ambient authority.
 //
 // Beats:
-//   1. Parse command-line options and dispatch --help, --version, or --mcp.
-//   2. Execute capability-bounded oohex operations.
-//   3. Format and output structured results to standard output.
+//   1. Parse CLI options and dispatch --help, --version, --test, --demo, or --mcp.
+//   2. Read bounded input from file descriptors or standard input under FsReadCap.
+//   3. Render canonical hex dumps, continuous plain hex, or delta comparisons.
+//   4. Output structured results with colorized categories and return status codes.
+
+import "core/hex_types.oo";
+import "core/hex_formatter.oo";
+import "core/hex_decoder.oo";
+import "core/file_reader.oo";
+import "render/render_table.oo";
+import "render/render_json.oo";
+import "render/render_demo.oo";
+import "ipc/cli_options.oo";
+import "ipc/mcp_server.oo";
+import "anchor.oo";
 
 fn render_help() -> String {
-    return "oohex 0.1.0 (openOODA sovereign search & inspection)\n"
-        + "usage: oohex [options] [ARGUMENTS]...\n\n"
+    return "oohex 0.2.0 (openOODA sovereign hex dump pager)\n"
+        + "usage: oohex [options] [FILE]...\n\n"
         + "Color-coded hexadecimal viewer with canonical ASCII sidebar and delta highlighting.\n\n"
         + "Options:\n"
-        + "  -h, --help           display this help and exit\n"
-        + "  -v, --version        output version information and exit\n"
-        + "      --json           output formatted as JSON Lines\n"
-        + "      --color <WHEN>   colorize output: auto, always, never [default: auto]\n"
-        + "      --theme <NAME>   override active oote palette\n"
-        + "      --mcp            run as Model Context Protocol stdio server\n";
+        + "  -c, --cols <NUM>      format <NUM> octets per line [default: 16]\n"
+        + "  -s, --skip <NUM>      skip <NUM> octets from beginning of input [default: 0]\n"
+        + "  -n, --length <NUM>    stop after reading <NUM> octets\n"
+        + "  -g, --groupsize <NUM> group octets in clusters of <NUM>\n"
+        + "  -C, --canonical       canonical hex+ASCII display [default]\n"
+        + "  -p, --plain           output plain continuous hexadecimal string\n"
+        + "  -u, --uppercase       use uppercase hex letters\n"
+        + "  -r, --reverse         reverse operation: convert hex back into binary/ASCII\n"
+        + "      --no-color        suppress ANSI color highlights\n"
+        + "  -j, --json            output structured JSON telemetry\n"
+        + "  -D, --demo            run interactive hex dump and delta showcase\n"
+        + "      --test            run internal verification anchor self-test suite\n"
+        + "  -h, --help            display this help and exit\n"
+        + "  -v, --version         output version information and exit\n"
+        + "      --mcp             run as Model Context Protocol stdio server\n";
 }
 
 fn render_version() -> String {
-    return "oohex 0.1.0 (openOODA sovereign search & inspection)\n";
+    return "oohex 0.2.0 (openOODA sovereign search & inspection)\n";
 }
 
-fn main(args: List[String]) -> Int {
-    let num_args: Int = list_len(args);
-    let mut i: Int = 0;
+pub fn main(fs: &FsReadCap, proc: &ProcessCap, env: &EnvCap, args: List[String]) -> Int {
+    let opts: CliOptions = parse_cli_options(args);
 
-    while i < num_args {
-        let arg: String = list_get(args, i);
-        if arg == "-h" || arg == "--help" {
-            print(render_help());
+    if opts.help {
+        print(render_help());
+        return 0;
+    }
+    if opts.version {
+        print(render_version());
+        return 0;
+    }
+    if opts.test {
+        if verify_all() {
+            println("OK: all tests passed");
             return 0;
+        } else {
+            println("FAIL: verification error");
+            return 1;
         }
-        if arg == "-v" || arg == "--version" {
-            print(render_version());
-            return 0;
-        }
-        if arg == "--mcp" {
-            print("{\"jsonrpc\":\"2.0\",\"result\":{\"status\":\"ready\",\"tool\":\"oohex\"}}\n");
-            return 0;
-        }
-        i = i + 1;
+    }
+    if opts.demo {
+        print(run_hex_demo(opts.color));
+        return 0;
+    }
+    if opts.mcp {
+        run_mcp_server(fs);
+        return 0;
     }
 
-    print("oohex: sovereign capability-bounded utility ready\n");
+    let file_count: Int = list_len(opts.files);
+
+    // Delta comparison mode when exactly 2 files provided
+    if file_count == 2 && !opts.reverse {
+        let f1: String = list_get(opts.files, 0);
+        let f2: String = list_get(opts.files, 1);
+        let res_a: Result[List[Int], String] = read_bounded_bytes(fs, f1, opts.skip, opts.length);
+        let res_b: Result[List[Int], String] = read_bounded_bytes(fs, f2, opts.skip, opts.length);
+
+        if !res_a.is_ok() {
+            println("oohex: error reading " + f1);
+            return 1;
+        }
+        if !res_b.is_ok() {
+            println("oohex: error reading " + f2);
+            return 1;
+        }
+
+        let bytes_a: List[Int] = match res_a { Ok(lst) => lst, Err(_) => list_new() };
+        let bytes_b: List[Int] = match res_b { Ok(lst) => lst, Err(_) => list_new() };
+
+        if opts.json {
+            let diff_cnt: Int = count_differing_bytes(bytes_a, bytes_b);
+            println(hex_diff_to_json(f1, f2, diff_cnt, list_len(bytes_a), list_len(bytes_b)));
+        } else {
+            print(render_diff_table(f1, bytes_a, f2, bytes_b, opts.color));
+        }
+        return 0;
+    }
+
+    // Process single file or stdin
+    let mut raw_bytes: List[Int] = list_new();
+    let mut label: String = "stdin";
+
+    if file_count >= 1 {
+        let path: String = list_get(opts.files, 0);
+        label = path;
+        if opts.reverse {
+            let content_res: Result[String, String] = oo_read_file(fs, path);
+            if !content_res.is_ok() {
+                println("oohex: error reading " + path);
+                return 1;
+            }
+            let content: String = match content_res { Ok(s) => s, Err(_) => "" };
+            let dec_res: Result[String, String] = decode_hex_to_str(content);
+            if !dec_res.is_ok() {
+                println("oohex: decode error in " + path);
+                return 1;
+            }
+            let decoded: String = match dec_res { Ok(s) => s, Err(_) => "" };
+            print(decoded);
+            return 0;
+        }
+
+        let f_res: Result[List[Int], String] = read_bounded_bytes(fs, path, opts.skip, opts.length);
+        if !f_res.is_ok() {
+            println("oohex: error reading " + path);
+            return 1;
+        }
+        raw_bytes = match f_res { Ok(lst) => lst, Err(_) => list_new() };
+    } else {
+        let chunk_res: Result[String, String] = oo_read_stdin_chunk(fs, 65536);
+        let chunk: String = match chunk_res { Ok(s) => s, Err(_) => "" };
+        if opts.reverse {
+            let dec_res: Result[String, String] = decode_hex_to_str(chunk);
+            if !dec_res.is_ok() {
+                println("oohex: stdin hex decode error");
+                return 1;
+            }
+            let decoded: String = match dec_res { Ok(s) => s, Err(_) => "" };
+            print(decoded);
+            return 0;
+        }
+        raw_bytes = str_to_byte_list(chunk, opts.skip, opts.length);
+    }
+
+    if opts.json {
+        let stats: HexStats = compute_stats(raw_bytes);
+        println(hex_result_to_json(label, raw_bytes, opts.skip, stats));
+    } else if opts.plain {
+        println(format_plain_hex(raw_bytes, opts.uppercase));
+    } else {
+        print(render_hex_table(raw_bytes, opts.cols, opts.skip, opts.uppercase, opts.color));
+    }
+
     return 0;
 }

@@ -1,5 +1,5 @@
 Name:           oohex
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Color-coded hexadecimal viewer with canonical ASCII sidebar and delta highlighting.
 License:        ASL 2.0
@@ -11,8 +11,8 @@ Requires:       glibc
 
 %description
 oohex is a sovereign, capability-bounded HEX DUMP PAGER written
-in pure openOODA, featuring zero ambient authority, oote color themes,
-and an MCP stdio server.
+in pure openOODA, featuring zero ambient authority, semantic byte colors,
+delta diffing, and an MCP stdio server.
 
 %install
 mkdir -p %{buildroot}/usr/bin
@@ -24,5 +24,5 @@ install -m 0755 %{SOURCE1} %{buildroot}/usr/bin/oohex-uninstall
 /usr/bin/oohex-uninstall
 
 %changelog
-* Wed Oct 07 2026 openOODA-tools <ops@openooda.org> - 0.1.0-1
-- Initial sovereign blueprint scaffolding
+* Thu Oct 08 2026 openOODA-tools <ops@openooda.org> - 0.2.0-1
+- Sovereign native openOODA hex dump pager with MCP parity

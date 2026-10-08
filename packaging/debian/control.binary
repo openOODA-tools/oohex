@@ -1,0 +1,9 @@
+Package: oohex
+Version: 0.2.0-1
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: openOODA-tools <ops@openooda.org>
+Description: Sovereign Hex Dump Pager with Canonical ASCII Sidebar
+ Color-coded hexadecimal viewer with canonical ASCII sidebar, delta
+ highlighting, and Model Context Protocol stdio server in 100% pure openOODA.

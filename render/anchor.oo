@@ -1,0 +1,61 @@
+// # Render Subsystem Verification Anchor
+//
+// Logline: Automated self-tests for hex table formatting and JSON telemetry serialization.
+//
+// Setup: Exercises table generation, diff rendering, and demo showcase routines.
+//
+// Beats:
+//   1. Verify canonical hex table rendering with offset and ASCII delimiters.
+//   2. Verify delta comparison formatting between differing payloads.
+//   3. Verify JSON serialization of hex results, diffs, and frequency stats.
+//   4. Verify demo showcase generation with binary dissection strings.
+
+import "core/hex_types.oo";
+import "core/hex_formatter.oo";
+import "render/render_table.oo";
+import "render/render_json.oo";
+import "render/render_demo.oo";
+
+pub fn verify_render() -> Bool {
+    let mut bytes: List[Int] = list_new();
+    bytes = list_push(bytes, 72); // 'H'
+    bytes = list_push(bytes, 101); // 'e'
+    bytes = list_push(bytes, 121); // 'y'
+    bytes = list_push(bytes, 33); // '!'
+
+    // Test 1: render_hex_table
+    let tbl: String = render_hex_table(bytes, 16, 0, false, false);
+    if !str_contains(tbl, "00000000") || !str_contains(tbl, "|Hey!|") {
+        return false;
+    }
+
+    // Test 2: render_diff_table
+    let mut other: List[Int] = list_new();
+    other = list_push(other, 72);
+    other = list_push(other, 105); // 'i'
+    other = list_push(other, 33);
+    let diff_txt: String = render_diff_table("orig", bytes, "mod", other, false);
+    if !str_contains(diff_txt, "HEX DELTA COMPARISON") || !str_contains(diff_txt, "Total mismatched bytes") {
+        return false;
+    }
+
+    // Test 3: JSON serializers
+    let stats: HexStats = compute_stats(bytes);
+    let j_res: String = hex_result_to_json("sample", bytes, 0, stats);
+    if !str_contains(j_res, "\"name\":\"sample\"") || !str_contains(j_res, "\"bytes\":4") {
+        return false;
+    }
+
+    let j_diff: String = hex_diff_to_json("f1", "f2", 2, 4, 3);
+    if !str_contains(j_diff, "\"diff_count\":2") || !str_contains(j_diff, "\"identical\":false") {
+        return false;
+    }
+
+    // Test 4: Demo
+    let demo: String = run_hex_demo(false);
+    if !str_contains(demo, "oohex: Sovereign openOODA Hex Dump Pager Demo") {
+        return false;
+    }
+
+    return true;
+}
